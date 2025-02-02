@@ -4,19 +4,10 @@ import {
   TextField,
   Button,
   Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  Select,
-  MenuItem,
-  InputLabel,
 } from '@mui/material';
 import { Save, Add, Send, AutoAwesome } from '@mui/icons-material';
-import { ParsedData, Schema, SchemaColumn, DATA_TYPES } from '../../types/types';
+import { ParsedData, Schema, SchemaColumn } from '../../types/types';
 import SchemaTable from './SchemaTable';
-import NestedColumnDialog from './NestedColumnDialog';
 import { usePreviewData } from 'hooks/usePreviewData';
 
 interface SchemaFormProps {
@@ -42,13 +33,6 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
 }) => {
   const [schemaName, setSchemaName] = React.useState('');
   const [columns, setColumns] = React.useState<SchemaColumn[]>([]);
-  const [newColumnDialog, setNewColumnDialog] = React.useState(false);
-  const [nestedColumnDialog, setNestedColumnDialog] = React.useState(false);
-  const [editingObjectColumnIndex, setEditingObjectColumnIndex] = React.useState<number | null>(null);
-  const [newColumn, setNewColumn] = React.useState({ 
-    title: '', 
-    dataType: 'string' as typeof DATA_TYPES[number] 
-  });
   const { setPreviewData } = usePreviewData();
 
   React.useEffect(() => {
@@ -83,45 +67,17 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
   };
 
   const handleAddColumn = () => {
-    if (newColumn.title) {
-      const newColumnData: SchemaColumn = {
-        title: newColumn.title,
-        order: columns.length,
-        dataType: newColumn.dataType
-      };
+    const newColumnData: SchemaColumn = {
+      title: `Column ${columns.length + 1}`,
+      order: columns.length,
+      dataType: 'string'
+    };
 
-      setColumns([...columns, newColumnData]);
-
-      if (newColumn.dataType === 'object') {
-        setEditingObjectColumnIndex(columns.length);
-        setNestedColumnDialog(true);
-      }
-
-      setNewColumn({ title: '', dataType: 'string' });
-      setNewColumnDialog(false);
-    }
+    setColumns([...columns, newColumnData]);
   };
 
   const handleColumnDelete = (index: number) => {
     setColumns(columns.filter((_, i) => i !== index));
-  };
-
-  const handleEditNestedColumns = (index: number) => {
-    setEditingObjectColumnIndex(index);
-    setNestedColumnDialog(true);
-  };
-
-  const handleNestedColumnsSave = (nestedColumns: SchemaColumn[]) => {
-    if (editingObjectColumnIndex !== null) {
-      const updatedColumns = [...columns];
-      updatedColumns[editingObjectColumnIndex] = {
-        ...updatedColumns[editingObjectColumnIndex],
-        objectSchema: nestedColumns
-      };
-      setColumns(updatedColumns);
-    }
-    setNestedColumnDialog(false);
-    setEditingObjectColumnIndex(null);
   };
 
   const handleSendToEndpoint = async () => {
@@ -131,11 +87,7 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
       setLoading(true);
       const formData = new FormData();
       const payload = {
-        schema: {
-          id: editingSchema.id,
-          name: editingSchema.name,
-          columns: editingSchema.columns
-        },
+        schema: editingSchema,
         data: data
       };
       formData.append('request', JSON.stringify(payload));
@@ -237,7 +189,7 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
         </Button>
         <Button
           startIcon={<Add />}
-          onClick={() => setNewColumnDialog(true)}
+          onClick={handleAddColumn}
         >
           Add Column
         </Button>
@@ -247,63 +199,6 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
         columns={columns}
         onColumnsChange={setColumns}
         onDeleteColumn={handleColumnDelete}
-        onEditNestedColumns={handleEditNestedColumns}
-      />
-
-      {/* Add Column Dialog */}
-      <Dialog open={newColumnDialog} onClose={() => setNewColumnDialog(false)}>
-        <DialogTitle>Add New Column</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              label="Column Title"
-              value={newColumn.title}
-              onChange={(e) => setNewColumn({ ...newColumn, title: e.target.value })}
-              fullWidth
-            />
-            <FormControl fullWidth>
-              <InputLabel>Data Type</InputLabel>
-              <Select
-                value={newColumn.dataType}
-                label="Data Type"
-                onChange={(e) => setNewColumn({ 
-                  ...newColumn, 
-                  dataType: e.target.value as typeof DATA_TYPES[number] 
-                })}
-              >
-                {DATA_TYPES.map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {type}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNewColumnDialog(false)}>Cancel</Button>
-          <Button 
-            variant="contained" 
-            onClick={handleAddColumn}
-            disabled={!newColumn.title}
-          >
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Nested Columns Dialog */}
-      <NestedColumnDialog
-        open={nestedColumnDialog}
-        onClose={() => {
-          setNestedColumnDialog(false);
-          setEditingObjectColumnIndex(null);
-        }}
-        onSave={handleNestedColumnsSave}
-        initialColumns={editingObjectColumnIndex !== null ? 
-          columns[editingObjectColumnIndex]?.objectSchema || [] : 
-          []
-        }
       />
     </Box>
   );

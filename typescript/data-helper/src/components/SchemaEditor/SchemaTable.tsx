@@ -14,25 +14,29 @@ import {
   MenuItem,
   Tooltip,
   Box,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Button,
+  Typography,
 } from '@mui/material';
-import { Delete, DragIndicator, Edit } from '@mui/icons-material';
+import { Delete, DragIndicator, ExpandMore, Add } from '@mui/icons-material';
 import { SchemaColumn, DATA_TYPES } from '../../types/types';
 
 interface SchemaTableProps {
   columns: SchemaColumn[];
   onColumnsChange: (columns: SchemaColumn[]) => void;
   onDeleteColumn: (index: number) => void;
-  onEditNestedColumns: (index: number) => void;
 }
 
 const SchemaTable: React.FC<SchemaTableProps> = ({
   columns,
   onColumnsChange,
   onDeleteColumn,
-  onEditNestedColumns,
 }) => {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [editingCell, setEditingCell] = React.useState<{ index: number; value: string } | null>(null);
+  const [expandedObjectIndex, setExpandedObjectIndex] = React.useState<number | null>(null);
 
   const handleDoubleClick = (index: number, value: string) => {
     setEditingCell({ index, value });
@@ -43,7 +47,7 @@ const SchemaTable: React.FC<SchemaTableProps> = ({
       const newColumns = [...columns];
       newColumns[editingCell.index] = {
         ...newColumns[editingCell.index],
-        title: editingCell.value
+        title: editingCell.value || `Column ${editingCell.index + 1}`
       };
       onColumnsChange(newColumns);
       setEditingCell(null);
@@ -73,6 +77,50 @@ const SchemaTable: React.FC<SchemaTableProps> = ({
     setDraggedIndex(index);
   };
 
+  const handleAddNestedColumn = (parentIndex: number) => {
+    const newColumns = [...columns];
+    const parentColumn = newColumns[parentIndex];
+    
+    if (!parentColumn.objectSchema) {
+      parentColumn.objectSchema = [];
+    }
+
+    parentColumn.objectSchema.push({
+      title: `Field ${parentColumn.objectSchema.length + 1}`,
+      order: parentColumn.objectSchema.length,
+      dataType: 'string'
+    });
+
+    onColumnsChange(newColumns);
+  };
+
+  const handleUpdateNestedColumn = (
+    parentIndex: number,
+    nestedIndex: number,
+    updates: Partial<SchemaColumn>
+  ) => {
+    const newColumns = [...columns];
+    const parentColumn = newColumns[parentIndex];
+    
+    if (parentColumn.objectSchema) {
+      parentColumn.objectSchema[nestedIndex] = {
+        ...parentColumn.objectSchema[nestedIndex],
+        ...updates
+      };
+      onColumnsChange(newColumns);
+    }
+  };
+
+  const handleDeleteNestedColumn = (parentIndex: number, nestedIndex: number) => {
+    const newColumns = [...columns];
+    const parentColumn = newColumns[parentIndex];
+    
+    if (parentColumn.objectSchema) {
+      parentColumn.objectSchema = parentColumn.objectSchema.filter((_, i) => i !== nestedIndex);
+      onColumnsChange(newColumns);
+    }
+  };
+
   return (
     <TableContainer component={Paper}>
       <Table>
@@ -86,71 +134,61 @@ const SchemaTable: React.FC<SchemaTableProps> = ({
         </TableHead>
         <TableBody>
           {columns.map((column, index) => (
-            <TableRow
-              key={column.title + index}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, index)}
-              sx={{ 
-                cursor: 'move',
-                bgcolor: draggedIndex === index ? 'action.hover' : 'inherit',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                }
-              }}
-            >
-              <TableCell>
-                <DragIndicator />
-              </TableCell>
-              <TableCell onDoubleClick={() => handleDoubleClick(index, column.title)}>
-                {editingCell?.index === index ? (
-                  <TextField
-                    value={editingCell.value}
-                    onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
-                    onBlur={handleCellBlur}
-                    autoFocus
-                    size="small"
-                    fullWidth
-                  />
-                ) : (
-                  column.title
-                )}
-              </TableCell>
-              <TableCell>
-                <FormControl fullWidth size="small">
-                  <Select
-                    value={column.dataType}
-                    onChange={(e) => {
-                      const newColumns = [...columns];
-                      newColumns[index] = {
-                        ...newColumns[index],
-                        dataType: e.target.value as typeof DATA_TYPES[number]
-                      };
-                      onColumnsChange(newColumns);
-                    }}
-                  >
-                    {DATA_TYPES.map((type) => (
-                      <MenuItem key={type} value={type}>
-                        {type}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </TableCell>
-              <TableCell>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  {column.dataType === 'object' && (
-                    <Tooltip title="Edit Nested Schema">
-                      <IconButton
-                        onClick={() => onEditNestedColumns(index)}
-                        size="small"
-                        color="primary"
-                      >
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
+            <React.Fragment key={index}>
+              <TableRow
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                sx={{ 
+                  cursor: 'move',
+                  bgcolor: draggedIndex === index ? 'action.hover' : 'inherit',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  }
+                }}
+              >
+                <TableCell>
+                  <DragIndicator />
+                </TableCell>
+                <TableCell onDoubleClick={() => handleDoubleClick(index, column.title)}>
+                  {editingCell?.index === index ? (
+                    <TextField
+                      value={editingCell.value}
+                      onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                      onBlur={handleCellBlur}
+                      autoFocus
+                      size="small"
+                      fullWidth
+                    />
+                  ) : (
+                    column.title
                   )}
+                </TableCell>
+                <TableCell>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      value={column.dataType}
+                      onChange={(e) => {
+                        const newColumns = [...columns];
+                        const newType = e.target.value as typeof DATA_TYPES[number];
+                        newColumns[index] = {
+                          ...newColumns[index],
+                          dataType: newType,
+                          objectSchema: newType === 'object' ? [] : undefined
+                        };
+                        onColumnsChange(newColumns);
+                      }}
+                    >
+                      {DATA_TYPES.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </TableCell>
+                <TableCell>
                   <Tooltip title="Delete Column">
                     <IconButton 
                       onClick={() => onDeleteColumn(index)}
@@ -160,9 +198,91 @@ const SchemaTable: React.FC<SchemaTableProps> = ({
                       <Delete />
                     </IconButton>
                   </Tooltip>
-                </Box>
-              </TableCell>
-            </TableRow>
+                </TableCell>
+              </TableRow>
+              {column.dataType === 'object' && (
+                <TableRow>
+                  <TableCell colSpan={4} sx={{ py: 0, borderBottom: 'none' }}>
+                    <Accordion
+                      expanded={expandedObjectIndex === index}
+                      onChange={() => setExpandedObjectIndex(expandedObjectIndex === index ? null : index)}
+                      sx={{ boxShadow: 'none', '&:before': { display: 'none' } }}
+                    >
+                      <AccordionSummary expandIcon={<ExpandMore />}>
+                        <Typography variant="subtitle2">
+                          Object Fields ({column.objectSchema?.length || 0})
+                        </Typography>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Box sx={{ mb: 2 }}>
+                          <Button
+                            startIcon={<Add />}
+                            size="small"
+                            onClick={() => handleAddNestedColumn(index)}
+                          >
+                            Add Field
+                          </Button>
+                        </Box>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Field Name</TableCell>
+                              <TableCell>Type</TableCell>
+                              <TableCell width="50px">Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {column.objectSchema?.map((nestedColumn, nestedIndex) => (
+                              <TableRow key={nestedIndex}>
+                                <TableCell>
+                                  <TextField
+                                    value={nestedColumn.title}
+                                    onChange={(e) => handleUpdateNestedColumn(
+                                      index,
+                                      nestedIndex,
+                                      { title: e.target.value }
+                                    )}
+                                    size="small"
+                                    fullWidth
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <FormControl fullWidth size="small">
+                                    <Select
+                                      value={nestedColumn.dataType}
+                                      onChange={(e) => handleUpdateNestedColumn(
+                                        index,
+                                        nestedIndex,
+                                        { dataType: e.target.value as typeof DATA_TYPES[number] }
+                                      )}
+                                    >
+                                      {DATA_TYPES.filter(type => type !== 'object').map((type) => (
+                                        <MenuItem key={type} value={type}>
+                                          {type}
+                                        </MenuItem>
+                                      ))}
+                                    </Select>
+                                  </FormControl>
+                                </TableCell>
+                                <TableCell>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleDeleteNestedColumn(index, nestedIndex)}
+                                  >
+                                    <Delete />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </AccordionDetails>
+                    </Accordion>
+                  </TableCell>
+                </TableRow>
+              )}
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
